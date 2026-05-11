@@ -99,7 +99,10 @@ export function Simulator() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const adapter = useMemo(() => new LocalHttpAdapter(), []);
-  const computeCounterRef = useRef(0);
+  // Rolling window of the last 30 /compute wall-clock measurements. Used
+  // only for the once-per-second perf log; doesn't drive UI state.
+  const computeTimingsRef = useRef<number[]>([]);
+  const lastPerfLogRef = useRef(0);
 
   // Phase 0 protocol round-trip: open a backend session on mount. The
   // returned sessionId is the cookie that /compute and /click require.
@@ -125,16 +128,29 @@ export function Simulator() {
 
   useEffect(() => {
     if (!diffusing || mode !== "running") return;
+    if (sessionId === null) return;
     const ms = Math.max(60, 600 - speed * 5.5);
     const id = setInterval(() => {
-      setTicks((t) => t + 1);
-      if (sessionId === null) return;
+      const t0 = performance.now();
       adapter
         .compute(sessionId, 1 / 30, mapTempToLevel(temp))
         .then((res) => {
-          const n = ++computeCounterRef.current;
-          if (n % 30 === 0) {
-            console.log("moda compute (every 30th):", res);
+          const elapsed = performance.now() - t0;
+          const window = computeTimingsRef.current;
+          window.push(elapsed);
+          if (window.length > 30) window.shift();
+
+          setSimState(res.state);
+          setTicks(res.state.tick);
+
+          const now = performance.now();
+          if (window.length >= 30 && now - lastPerfLogRef.current >= 1000) {
+            const avg = window.reduce((a, b) => a + b, 0) / window.length;
+            const max = Math.max(...window);
+            console.log(
+              `moda compute: avg ${avg.toFixed(1)}ms, max ${max.toFixed(1)}ms over last 30`,
+            );
+            lastPerfLogRef.current = now;
           }
         })
         .catch((e) => {
