@@ -1,24 +1,49 @@
 import type { ForgeAdapter } from "./ForgeAdapter";
-import type { ClickEvent, Scenario, SimulationState } from "../types/wire";
+import type {
+  ClickResponse,
+  ComputeResponse,
+  InitResponse,
+  Temperature,
+} from "../types/wire";
 
 export class LocalHttpAdapter implements ForgeAdapter {
   readonly baseUrl: string;
 
-  constructor(baseUrl: string = "http://localhost:8000") {
+  constructor(baseUrl: string = "http://localhost:8000/moda") {
     this.baseUrl = baseUrl;
   }
 
-  init(_scenario: Scenario): Promise<unknown> {
-    throw new Error(`LocalHttpAdapter.init not implemented (${this.baseUrl})`);
+  init(scenarioId: string): Promise<InitResponse> {
+    return this.post<InitResponse>("/init", { scenarioId });
   }
 
-  click(_state: SimulationState, _event: ClickEvent): Promise<unknown> {
-    throw new Error(`LocalHttpAdapter.click not implemented (${this.baseUrl})`);
+  compute(
+    sessionId: string,
+    dt: number,
+    temperature: Temperature,
+  ): Promise<ComputeResponse> {
+    return this.post<ComputeResponse>("/compute", {
+      sessionId,
+      dt,
+      temperature,
+    });
   }
 
-  compute(_state: SimulationState, _dt: number): Promise<unknown> {
-    throw new Error(
-      `LocalHttpAdapter.compute not implemented (${this.baseUrl})`,
-    );
+  click(sessionId: string, x: number, y: number): Promise<ClickResponse> {
+    return this.post<ClickResponse>("/click", { sessionId, x, y });
+  }
+
+  private async post<T>(path: string, body: unknown): Promise<T> {
+    const url = `${this.baseUrl}${path}`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`POST ${url} → ${res.status}: ${text}`);
+    }
+    return (await res.json()) as T;
   }
 }

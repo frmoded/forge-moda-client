@@ -1,10 +1,22 @@
 import {
   useEffect,
+  useMemo,
+  useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import styles from "./Simulator.module.css";
+import { LocalHttpAdapter } from "../adapters/LocalHttpAdapter";
+import type { Temperature } from "../types/wire";
+
+function mapTempToLevel(temp: number): Temperature {
+  if (temp < 10) return "zero";
+  if (temp < 40) return "low";
+  if (temp < 70) return "medium";
+  return "high";
+}
 
 interface IconProps {
   size?: number;
@@ -81,13 +93,51 @@ export function Simulator() {
   const [grid, setGrid] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [ticks, setTicks] = useState(2);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  const adapter = useMemo(() => new LocalHttpAdapter(), []);
+  const computeCounterRef = useRef(0);
+
+  // Phase 0 protocol round-trip: open a backend session on mount. The
+  // returned sessionId is the cookie that /compute and /click require.
+  // Failures are logged but don't break the local mock visualization.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await adapter.init("default_diffusion");
+        if (cancelled) return;
+        setSessionId(res.sessionId);
+        console.log("moda sessionId:", res.sessionId);
+      } catch (e) {
+        console.error("moda init failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [adapter]);
 
   useEffect(() => {
     if (!diffusing || mode !== "running") return;
     const ms = Math.max(60, 600 - speed * 5.5);
-    const id = setInterval(() => setTicks((t) => t + 1), ms);
+    const id = setInterval(() => {
+      setTicks((t) => t + 1);
+      if (sessionId === null) return;
+      adapter
+        .compute(sessionId, 1 / 30, mapTempToLevel(temp))
+        .then((res) => {
+          const n = ++computeCounterRef.current;
+          if (n % 30 === 0) {
+            console.log("moda compute (every 30th):", res);
+          }
+        })
+        .catch((e) => {
+          console.error("moda compute failed:", e);
+        });
+    }, ms);
     return () => clearInterval(id);
-  }, [diffusing, mode, speed]);
+  }, [diffusing, mode, speed, sessionId, adapter, temp]);
 
   const speedPct = `${speed}%`;
   const tempPct = `${temp}%`;
@@ -109,6 +159,19 @@ export function Simulator() {
     } else {
       setDiffusing(true);
       setMode("running");
+    }
+  };
+
+  const handleCanvasClick = async (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (sessionId === null) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    try {
+      const res = await adapter.click(sessionId, x, y);
+      console.log("moda click:", { x, y, res });
+    } catch (err) {
+      console.error("moda click failed:", err);
     }
   };
 
@@ -194,6 +257,7 @@ export function Simulator() {
           <div
             className={canvasClass}
             style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
+            onClick={handleCanvasClick}
           >
             <span className={styles.canvasTag}>
               [ particle visualization · {ticks} ticks ]

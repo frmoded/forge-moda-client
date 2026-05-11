@@ -1,7 +1,16 @@
-import type { ClickEvent, Scenario, SimulationState } from "../types/wire";
+import type {
+  ClickResponse,
+  ComputeResponse,
+  InitResponse,
+  Temperature,
+} from "../types/wire";
 
 export interface ForgeAdapter {
-  init(scenario: Scenario): Promise<unknown>;
-  click(state: SimulationState, event: ClickEvent): Promise<unknown>;
-  compute(state: SimulationState, dt: number): Promise<unknown>;
+  init(scenarioId: string): Promise<InitResponse>;
+  compute(
+    sessionId: string,
+    dt: number,
+    temperature: Temperature,
+  ): Promise<ComputeResponse>;
+  click(sessionId: string, x: number, y: number): Promise<ClickResponse>;
 }
