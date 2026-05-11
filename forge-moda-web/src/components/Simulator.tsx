@@ -9,7 +9,7 @@ import {
 } from "react";
 import styles from "./Simulator.module.css";
 import { LocalHttpAdapter } from "../adapters/LocalHttpAdapter";
-import type { Temperature } from "../types/wire";
+import type { SimState, Temperature } from "../types/wire";
 
 function mapTempToLevel(temp: number): Temperature {
   if (temp < 10) return "zero";
@@ -94,6 +94,9 @@ export function Simulator() {
   const [zoom, setZoom] = useState(1);
   const [ticks, setTicks] = useState(2);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [simState, setSimState] = useState<SimState | null>(null);
+  const [canvasDims, setCanvasDims] = useState<{ width: number; height: number } | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const adapter = useMemo(() => new LocalHttpAdapter(), []);
   const computeCounterRef = useRef(0);
@@ -108,7 +111,9 @@ export function Simulator() {
         const res = await adapter.init("default_diffusion");
         if (cancelled) return;
         setSessionId(res.sessionId);
-        console.log("moda sessionId:", res.sessionId);
+        setSimState(res.state);
+        setCanvasDims({ width: res.config.width, height: res.config.height });
+        console.log("moda sessionId:", res.sessionId, "particles:", res.state.particles.length);
       } catch (e) {
         console.error("moda init failed:", e);
       }
@@ -138,6 +143,22 @@ export function Simulator() {
     }, ms);
     return () => clearInterval(id);
   }, [diffusing, mode, speed, sessionId, adapter, temp]);
+
+  // Phase 1: redraw on every simState change. Phase 2 will animate from
+  // /compute responses; for now this just paints the initial layout once.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !simState || !canvasDims) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvasDims.width, canvasDims.height);
+    ctx.fillStyle = "#3a6fb3";
+    for (const p of simState.particles) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }, [simState, canvasDims]);
 
   const speedPct = `${speed}%`;
   const tempPct = `${temp}%`;
@@ -259,9 +280,18 @@ export function Simulator() {
             style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
             onClick={handleCanvasClick}
           >
-            <span className={styles.canvasTag}>
-              [ particle visualization · {ticks} ticks ]
-            </span>
+            {canvasDims ? (
+              <canvas
+                ref={canvasRef}
+                width={canvasDims.width}
+                height={canvasDims.height}
+                className={styles.particleCanvas}
+              />
+            ) : (
+              <span className={styles.canvasTag}>
+                [ loading scenario · {ticks} ticks ]
+              </span>
+            )}
           </div>
         </div>
 
