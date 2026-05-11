@@ -1,0 +1,444 @@
+.host {
+  height: 100vh;
+  display: flex;
+}
+
+.frame {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ---------- Header ---------- */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0;
+}
+
+.zoomGroup {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.iconBtn {
+  width: 32px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.iconBtn:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+.iconBtn:active {
+  background: #f0eee8;
+}
+.iconBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.zoomGroup .iconBtn + .iconBtn {
+  border-left: 1px solid var(--border);
+}
+
+/* ---------- Toolbar (Run/Pause/Step + speed) ---------- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-sunken);
+}
+
+.transport {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.tBtn {
+  width: 36px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.tBtn:hover {
+  background: var(--surface-sunken);
+  border-color: #b9b6ad;
+}
+.tBtn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.tBtn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tBtn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.speedBlock {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+  max-width: 420px;
+}
+
+.speedLabel {
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ---------- Sliders (shared) ---------- */
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: transparent;
+  cursor: pointer;
+  height: 20px;
+}
+.range:focus {
+  outline: none;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--track);
+}
+.range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--track);
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
+  margin-top: -6px;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+.range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1.5px solid var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.range:hover::-webkit-slider-thumb {
+  border-color: var(--accent);
+}
+.range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--focus);
+}
+
+/* speed slider — fill via CSS variable --pct */
+.sliderSpeed::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--pct),
+    var(--track) var(--pct) 100%
+  );
+}
+.sliderSpeed::-moz-range-track {
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--pct),
+    var(--track) var(--pct) 100%
+  );
+}
+
+/* temperature slider — red → cool */
+.sliderTemp::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--hot) 0 var(--pct),
+    var(--track) var(--pct) 100%
+  );
+  height: 4px;
+  border-radius: 999px;
+}
+.sliderTemp::-moz-range-track {
+  background: linear-gradient(
+    to right,
+    var(--hot) 0 var(--pct),
+    var(--track) var(--pct) 100%
+  );
+}
+
+/* ---------- Canvas area ---------- */
+.canvasWrap {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 20px;
+  background: var(--surface);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.canvas {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 100%;
+  background: linear-gradient(
+        135deg,
+        rgba(0, 0, 0, 0.015) 0 50%,
+        rgba(0, 0, 0, 0) 0
+      )
+      0 0 / 14px 14px,
+    var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+}
+
+.canvas.grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+        to right,
+        rgba(0, 0, 0, 0.05) 1px,
+        transparent 1px
+      )
+      0 0 / 40px 40px,
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px) 0 0 /
+      40px 40px;
+  pointer-events: none;
+}
+
+.canvasTag {
+  background: rgba(255, 255, 255, 0.85);
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px dashed var(--border-strong);
+  z-index: 1;
+}
+
+/* ---------- Bottom: temperature panel ---------- */
+.panel {
+  border-top: 1px solid var(--border);
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 24px;
+  align-items: center;
+  background: var(--surface);
+}
+
+.fieldLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.tempSliderBlock {
+  display: flex;
+  flex-direction: column;
+}
+
+.tempReadout {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tempReadout .num {
+  background: #1f2024;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  min-width: 44px;
+  text-align: center;
+}
+
+.tempReadout .unit {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.tempReadoutWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.checkbox input {
+  display: none;
+}
+.checkbox .box {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  transition: all 0.12s ease;
+}
+.checkbox:hover .box {
+  border-color: var(--accent);
+}
+.checkbox input:checked + .box {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.checkbox input:focus-visible + .box {
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+/* The grid label inside the checkbox sits inline, not stacked */
+.checkbox .inlineLabel {
+  margin: 0;
+}
+
+/* ---------- Bottom action bar ---------- */
+.actionbar {
+  border-top: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-sunken);
+  position: relative;
+}
+
+.primaryBtn {
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.04s ease;
+  min-width: 180px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 2px 6px rgba(38, 70, 158, 0.18);
+}
+.primaryBtn:hover {
+  background: var(--accent-hover);
+}
+.primaryBtn:active {
+  transform: translateY(1px);
+}
+.primaryBtn:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.primaryBtn.isPaused {
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+.primaryBtn.isPaused:hover {
+  background: var(--accent-soft);
+}
+
+.ticks {
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ticks .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.ticks .dot.live {
+  background: oklch(0.6 0.15 145);
+  box-shadow: 0 0 0 3px oklch(0.6 0.15 145 / 0.18);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
