@@ -129,7 +129,11 @@ export function Simulator() {
   useEffect(() => {
     if (!diffusing || mode !== "running") return;
     if (sessionId === null) return;
-    const ms = Math.max(60, 600 - speed * 5.5);
+    // Floor at 33 ms (≈30 Hz) so the speed slider's top end matches the
+    // spec target. Slope 6 makes the floor bind around speed=95 and
+    // tightens up the high-end response; below that the slider continues
+    // to dilate the tick (speed=0 → 600 ms, speed=50 → 300 ms).
+    const ms = Math.max(33, 600 - speed * 6);
     const id = setInterval(() => {
       const t0 = performance.now();
       adapter
