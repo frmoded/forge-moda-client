@@ -164,16 +164,26 @@ export function Simulator() {
     return () => clearInterval(id);
   }, [diffusing, mode, speed, sessionId, adapter, temp]);
 
-  // Phase 1: redraw on every simState change. Phase 2 will animate from
-  // /compute responses; for now this just paints the initial layout once.
+  // Redraw on every simState update. Water is rendered blue, ink is
+  // rendered near-black so the two types are immediately distinguishable
+  // on the cream canvas background. Two passes (one fillStyle per pass)
+  // are slightly cheaper than setting fillStyle per particle.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !simState || !canvasDims) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvasDims.width, canvasDims.height);
+    const water = simState.particles.filter((p) => p.type === "water");
+    const ink = simState.particles.filter((p) => p.type === "ink");
     ctx.fillStyle = "#3a6fb3";
-    for (const p of simState.particles) {
+    for (const p of water) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#15171a";
+    for (const p of ink) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
       ctx.fill();
@@ -203,11 +213,15 @@ export function Simulator() {
     }
   };
 
-  const handleCanvasClick = async (e: ReactMouseEvent<HTMLDivElement>) => {
+  const handleCanvasClick = async (e: ReactMouseEvent<HTMLCanvasElement>) => {
     if (sessionId === null) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const canvas = e.currentTarget;
+    const rect = canvas.getBoundingClientRect();
+    // Translate the click from display coords to canvas-internal coords
+    // (0..config.width, 0..config.height). Accounts for CSS sizing AND
+    // the wrapper's zoom transform — rect.width already reflects them.
+    const x = ((e.clientX - rect.left) * canvas.width) / rect.width;
+    const y = ((e.clientY - rect.top) * canvas.height) / rect.height;
     try {
       const res = await adapter.click(sessionId, x, y);
       console.log("moda click:", { x, y, res });
@@ -298,7 +312,6 @@ export function Simulator() {
           <div
             className={canvasClass}
             style={{ transform: `scale(${zoom})`, transformOrigin: "center" }}
-            onClick={handleCanvasClick}
           >
             {canvasDims ? (
               <canvas
@@ -306,6 +319,7 @@ export function Simulator() {
                 width={canvasDims.width}
                 height={canvasDims.height}
                 className={styles.particleCanvas}
+                onClick={handleCanvasClick}
               />
             ) : (
               <span className={styles.canvasTag}>
