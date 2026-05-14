@@ -109,48 +109,6 @@
   cursor: not-allowed;
 }
 
-.scenarioBlock {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.scenarioSelect {
-  height: 32px;
-  padding: 0 28px 0 10px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 13px;
-  cursor: pointer;
-  /* native chevron is fine; keep this minimal */
-}
-.scenarioSelect:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
-.resetBtn {
-  height: 32px;
-  padding: 0 12px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-.resetBtn:hover {
-  background: var(--surface-sunken);
-  border-color: #b9b6ad;
-}
-.resetBtn:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 1px;
-}
-
 .speedBlock {
   margin-left: auto;
   display: flex;

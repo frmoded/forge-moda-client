@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -12,13 +11,12 @@ import styles from "./Simulator.module.css";
 import { LocalHttpAdapter } from "../adapters/LocalHttpAdapter";
 import type { SimState, Temperature } from "../types/wire";
 
-// Phase 6: scenarios the backend understands. The wire field is a free-form
-// string but the backend validates against its KNOWN_SCENARIOS set, so the
-// dropdown's options must stay in sync with that list.
-const SCENARIOS: { id: string; label: string }[] = [
-  { id: "default_diffusion", label: "Default" },
-  { id: "hot_chamber_start", label: "Hot chamber" },
-];
+// The backend understands two scenarios (default_diffusion + hot_chamber_start)
+// but the client only initializes against the default — the scenario-picker UI
+// was pulled in Phase 6 so the demo stays single-scenario. The backend's
+// KNOWN_SCENARIOS gate still permits "hot_chamber_start" if a future client
+// wants to opt in.
+const DEFAULT_SCENARIO_ID = "default_diffusion";
 
 function mapTempToLevel(temp: number): Temperature {
   if (temp < 10) return "zero";
@@ -105,7 +103,6 @@ export function Simulator() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [simState, setSimState] = useState<SimState | null>(null);
   const [canvasDims, setCanvasDims] = useState<{ width: number; height: number } | null>(null);
-  const [scenarioId, setScenarioId] = useState<string>("default_diffusion");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const adapter = useMemo(() => new LocalHttpAdapter(), []);
@@ -114,41 +111,27 @@ export function Simulator() {
   const computeTimingsRef = useRef<number[]>([]);
   const lastPerfLogRef = useRef(0);
 
-  // Open (or re-open) a backend session for the given scenario. Used by the
-  // mount effect, the scenario dropdown, and the Reset button. Clears the
-  // rolling perf window so timings from a previous session don't bleed into
-  // the new one's averages.
-  const initSession = useCallback(
-    async (id: string) => {
+  // Open the backend session on mount. The returned sessionId is the cookie
+  // that /compute and /click require. Failures are logged but don't break
+  // the local mock visualization.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
       try {
-        const res = await adapter.init(id);
+        const res = await adapter.init(DEFAULT_SCENARIO_ID);
+        if (cancelled) return;
         setSessionId(res.sessionId);
         setSimState(res.state);
         setCanvasDims({ width: res.config.width, height: res.config.height });
-        setTicks(res.state.tick);
-        computeTimingsRef.current = [];
-        lastPerfLogRef.current = 0;
-        console.log(
-          "moda init:",
-          { scenarioId: id, sessionId: res.sessionId, particles: res.state.particles.length },
-        );
+        console.log("moda sessionId:", res.sessionId, "particles:", res.state.particles.length);
       } catch (e) {
         console.error("moda init failed:", e);
       }
-    },
-    [adapter],
-  );
-
-  // Phase 0 protocol round-trip: open a backend session on mount. The
-  // returned sessionId is the cookie that /compute and /click require.
-  // Failures are logged but don't break the local mock visualization.
-  useEffect(() => {
-    void initSession(scenarioId);
-    // Intentionally NOT depending on scenarioId here — the dropdown's
-    // onChange drives subsequent re-inits; this effect is the one-shot
-    // mount load.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initSession]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [adapter]);
 
   useEffect(() => {
     if (!diffusing || mode !== "running") return;
@@ -314,37 +297,6 @@ export function Simulator() {
               disabled={!diffusing}
             >
               <IconStep size={15} />
-            </button>
-          </div>
-
-          <div className={styles.scenarioBlock}>
-            <label className={styles.speedLabel} htmlFor="scenario">
-              Scenario
-            </label>
-            <select
-              id="scenario"
-              className={styles.scenarioSelect}
-              value={scenarioId}
-              onChange={(e) => {
-                const next = e.target.value;
-                setScenarioId(next);
-                void initSession(next);
-              }}
-              aria-label="Scenario"
-            >
-              {SCENARIOS.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-            <button
-              className={styles.resetBtn}
-              onClick={() => void initSession(scenarioId)}
-              aria-label="Reset session"
-              title="Reset session for the current scenario"
-            >
-              Reset
             </button>
           </div>
 
