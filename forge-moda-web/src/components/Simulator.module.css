@@ -266,13 +266,11 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   max-height: 100%;
-  background: linear-gradient(
-        135deg,
-        rgba(0, 0, 0, 0.015) 0 50%,
-        rgba(0, 0, 0, 0) 0
-      )
-      0 0 / 14px 14px,
-    var(--surface-sunken);
+  /* Solid sunken background. The earlier 14px diagonal-stripe gradient
+     overlay was creating a faint grid-like artifact at roughly a third
+     of the toggle-grid pitch (40px) — distracting against the moving
+     particles. Same color, just flat now. */
+  background: var(--surface-sunken);
   border: 1px solid var(--border);
   border-radius: 8px;
   position: relative;
