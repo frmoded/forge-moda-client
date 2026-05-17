@@ -90,11 +90,10 @@ function tempWord(t: number): string {
   return "extreme";
 }
 
-type Mode = "running" | "paused" | "stopped";
+type Mode = "running" | "paused";
 
 export function Simulator() {
   const [mode, setMode] = useState<Mode>("running");
-  const [diffusing, setDiffusing] = useState(true);
   const [speed, setSpeed] = useState(50);
   const [temp, setTemp] = useState(41);
   const [grid, setGrid] = useState(false);
@@ -134,7 +133,7 @@ export function Simulator() {
   }, [adapter]);
 
   useEffect(() => {
-    if (!diffusing || mode !== "running") return;
+    if (mode !== "running") return;
     if (sessionId === null) return;
     // Floor at 33 ms (≈30 Hz) so the speed slider's top end matches the
     // spec target. Slope 6 makes the floor bind around speed=95 and
@@ -169,7 +168,7 @@ export function Simulator() {
         });
     }, ms);
     return () => clearInterval(id);
-  }, [diffusing, mode, speed, sessionId, adapter, temp]);
+  }, [mode, speed, sessionId, adapter, temp]);
 
   // Redraw on every simState update. Water is rendered blue, ink is
   // rendered near-black so the two types are immediately distinguishable
@@ -200,23 +199,28 @@ export function Simulator() {
   const speedPct = `${speed}%`;
   const tempPct = `${temp}%`;
 
-  const handleRun = () => {
-    setMode("running");
-    setDiffusing(true);
-  };
+  const handleRun = () => setMode("running");
   const handlePause = () =>
     setMode(mode === "paused" ? "running" : "paused");
-  const handleStep = () => {
+
+  // Step advances the simulation exactly one /compute tick and parks the
+  // mode at "paused" so the auto-loop doesn't immediately race past the
+  // new state. Wires the Step button to the backend — previously it just
+  // incremented a local counter and produced no visible motion.
+  const handleStep = async () => {
     setMode("paused");
-    setTicks((t) => t + 1);
-  };
-  const handlePrimary = () => {
-    if (diffusing) {
-      setDiffusing(false);
-      setMode("stopped");
-    } else {
-      setDiffusing(true);
-      setMode("running");
+    if (sessionId === null) return;
+    try {
+      const t0 = performance.now();
+      const res = await adapter.compute(sessionId, 1 / 30, mapTempToLevel(temp));
+      const elapsed = performance.now() - t0;
+      const window = computeTimingsRef.current;
+      window.push(elapsed);
+      if (window.length > 30) window.shift();
+      setSimState(res.state);
+      setTicks(res.state.tick);
+    } catch (e) {
+      console.error("moda step failed:", e);
     }
   };
 
@@ -238,11 +242,8 @@ export function Simulator() {
   };
 
   const canvasClass = grid ? `${styles.canvas} ${styles.grid}` : styles.canvas;
-  const primaryClass = !diffusing
-    ? `${styles.primaryBtn} ${styles.isPaused}`
-    : styles.primaryBtn;
   const dotClass =
-    diffusing && mode === "running" ? `${styles.dot} ${styles.live}` : styles.dot;
+    mode === "running" ? `${styles.dot} ${styles.live}` : styles.dot;
 
   return (
     <div className={styles.host}>
@@ -276,7 +277,7 @@ export function Simulator() {
             <button
               className={styles.tBtn}
               aria-label="Run"
-              aria-pressed={mode === "running" && diffusing}
+              aria-pressed={mode === "running"}
               onClick={handleRun}
             >
               <IconPlay size={15} />
@@ -286,15 +287,13 @@ export function Simulator() {
               aria-label={mode === "paused" ? "Resume" : "Pause"}
               aria-pressed={mode === "paused"}
               onClick={handlePause}
-              disabled={!diffusing}
             >
               <IconPause size={15} />
             </button>
             <button
               className={styles.tBtn}
               aria-label="Step one tick"
-              onClick={handleStep}
-              disabled={!diffusing}
+              onClick={() => void handleStep()}
             >
               <IconStep size={15} />
             </button>
@@ -378,13 +377,6 @@ export function Simulator() {
         </div>
 
         <div className={styles.actionbar}>
-          <button
-            className={primaryClass}
-            onClick={handlePrimary}
-            aria-pressed={!diffusing}
-          >
-            {diffusing ? "Stop Diffusion" : "Start Diffusion"}
-          </button>
           <span className={styles.ticks} aria-live="polite">
             <span className={dotClass}></span>
             {ticks.toLocaleString()} ticks

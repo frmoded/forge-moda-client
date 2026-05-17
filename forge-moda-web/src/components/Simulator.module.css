@@ -374,55 +374,21 @@
 }
 
 /* ---------- Bottom action bar ---------- */
+/* Houses only the ticks readout now that the Start/Stop primary button
+   is gone (the transport buttons in the toolbar cover start / pause /
+   step). Kept as a thin footer so the live-tick indicator stays
+   anchored at the bottom-right rather than being tucked into the
+   toolbar header. */
 .actionbar {
   border-top: 1px solid var(--border);
   padding: 14px 20px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   background: var(--surface-sunken);
-  position: relative;
-}
-
-.primaryBtn {
-  background: var(--accent);
-  color: #fff;
-  border: 0;
-  border-radius: 8px;
-  padding: 10px 22px;
-  font-size: 14px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.12s ease, transform 0.04s ease;
-  min-width: 180px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), 0 2px 6px rgba(38, 70, 158, 0.18);
-}
-.primaryBtn:hover {
-  background: var(--accent-hover);
-}
-.primaryBtn:active {
-  transform: translateY(1px);
-}
-.primaryBtn:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
-.primaryBtn.isPaused {
-  background: var(--surface);
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  box-shadow: var(--shadow-sm);
-}
-.primaryBtn.isPaused:hover {
-  background: var(--accent-soft);
 }
 
 .ticks {
-  position: absolute;
-  right: 20px;
-  top: 50%;
-  transform: translateY(-50%);
   font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
