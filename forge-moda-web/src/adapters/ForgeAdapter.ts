@@ -6,7 +6,7 @@ import type {
 } from "../types/wire";
 
 export interface ForgeAdapter {
-  init(scenarioId: string): Promise<InitResponse>;
+  init(): Promise<InitResponse>;
   compute(
     sessionId: string,
     dt: number,

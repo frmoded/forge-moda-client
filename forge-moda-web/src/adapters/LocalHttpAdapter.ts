@@ -13,8 +13,8 @@ export class LocalHttpAdapter implements ForgeAdapter {
     this.baseUrl = baseUrl;
   }
 
-  init(scenarioId: string): Promise<InitResponse> {
-    return this.post<InitResponse>("/init", { scenarioId });
+  init(): Promise<InitResponse> {
+    return this.post<InitResponse>("/init", {});
   }
 
   compute(

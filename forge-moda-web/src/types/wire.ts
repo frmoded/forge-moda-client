@@ -16,9 +16,11 @@ export interface SimState {
   particles: Particle[];
 }
 
-export interface InitRequest {
-  scenarioId: string;
-}
+// Empty body: the backend's /moda/init takes no arguments now that the
+// scenario abstraction has been removed (v0.2.0 of forge-moda). Kept as
+// an interface so the wire surface still has a named type that future
+// fields can land in without an adapter signature change.
+export type InitRequest = Record<string, never>;
 
 export interface InitResponse {
   sessionId: string;

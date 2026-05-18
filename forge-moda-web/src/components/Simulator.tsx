@@ -11,13 +11,6 @@ import styles from "./Simulator.module.css";
 import { LocalHttpAdapter } from "../adapters/LocalHttpAdapter";
 import type { SimState, Temperature } from "../types/wire";
 
-// The backend understands two scenarios (default_diffusion + hot_chamber_start)
-// but the client only initializes against the default — the scenario-picker UI
-// was pulled in Phase 6 so the demo stays single-scenario. The backend's
-// KNOWN_SCENARIOS gate still permits "hot_chamber_start" if a future client
-// wants to opt in.
-const DEFAULT_SCENARIO_ID = "default_diffusion";
-
 function mapTempToLevel(temp: number): Temperature {
   if (temp < 10) return "zero";
   if (temp < 40) return "low";
@@ -117,7 +110,7 @@ export function Simulator() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await adapter.init(DEFAULT_SCENARIO_ID);
+        const res = await adapter.init();
         if (cancelled) return;
         setSessionId(res.sessionId);
         setSimState(res.state);
