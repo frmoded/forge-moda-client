@@ -217,6 +217,25 @@ export function Simulator() {
     }
   };
 
+  // Obsidian's "Forge: Step MoDa simulation" command postMessages
+  // {type:'step'} into this iframe. Drive the existing handleStep so a
+  // keyboard/command step behaves exactly like the toolbar Step button
+  // (one /moda/compute tick, paused). A ref keeps the listener bound
+  // once while always calling the latest handleStep closure (which
+  // closes over sessionId/temp), avoiding stale-closure bugs and
+  // per-render re-subscription.
+  const handleStepRef = useRef(handleStep);
+  handleStepRef.current = handleStep;
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === "step") {
+        void handleStepRef.current();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
   const handleCanvasClick = async (e: ReactMouseEvent<HTMLCanvasElement>) => {
     if (sessionId === null) return;
     const canvas = e.currentTarget;
