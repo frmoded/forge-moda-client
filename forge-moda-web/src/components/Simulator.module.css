@@ -419,3 +419,37 @@
     opacity: 0.5;
   }
 }
+
+/* Console panel — surfaces stdout from /moda/* responses. Plain
+   monospace text block, fixed height with overflow scroll, dark
+   surface to read as "diagnostic output" rather than chrome. */
+.console {
+  margin-top: 12px;
+  border-radius: 6px;
+  background: oklch(0.18 0.01 240);
+  border: 1px solid var(--background-modifier-border, oklch(0.3 0.01 240));
+  overflow: hidden;
+}
+
+.consoleHeader {
+  padding: 4px 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: oklch(0.65 0.02 240);
+  background: oklch(0.22 0.01 240);
+  border-bottom: 1px solid oklch(0.3 0.01 240);
+}
+
+.consoleBody {
+  margin: 0;
+  padding: 6px 10px;
+  height: 80px;
+  overflow-y: auto;
+  font-family: var(--font-monospace, ui-monospace, SFMono-Regular, monospace);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: oklch(0.88 0.02 240);
+  white-space: pre-wrap;
+  word-break: break-word;
+}

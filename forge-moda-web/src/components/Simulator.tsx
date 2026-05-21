@@ -11,6 +11,12 @@ import styles from "./Simulator.module.css";
 import { LocalHttpAdapter } from "../adapters/LocalHttpAdapter";
 import type { SimState, Temperature } from "../types/wire";
 
+// Cap on the rolling console buffer. Bounds memory + DOM and matches
+// the per-line context the simulator's stdout-surfacing affordance is
+// designed for (educator-targeted, not a structured log). Older
+// lines drop off the front when the buffer fills.
+const MAX_CONSOLE_LINES = 200;
+
 function mapTempToLevel(temp: number): Temperature {
   if (temp < 10) return "zero";
   if (temp < 40) return "low";
@@ -97,7 +103,33 @@ export function Simulator() {
   const [canvasDims, setCanvasDims] = useState<{ width: number; height: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // Console panel: accumulates non-empty stdout lines from /moda/*
+  // responses. Cap at MAX_CONSOLE_LINES to keep React's reconciliation
+  // cheap and the DOM bounded; the oldest lines drop off the front.
+  // Append-only; the canvas re-render is keyed on simState so console
+  // updates don't redraw particles.
+  const [consoleLines, setConsoleLines] = useState<string[]>([]);
+  const consoleRef = useRef<HTMLPreElement | null>(null);
+
   const adapter = useMemo(() => new LocalHttpAdapter(), []);
+
+  // Append any non-empty lines from a /moda/* response's `stdout`
+  // field to the console panel. Centralized so init / compute /
+  // click all funnel through the same path. Splits on \n and drops
+  // empty entries (trailing newline from print() produces one).
+  const appendStdout = (stdout: string | undefined) => {
+    if (!stdout) return;
+    const lines = stdout.split("\n").filter((l) => l.length > 0);
+    if (lines.length === 0) return;
+    setConsoleLines((prev) => {
+      const next = prev.concat(lines);
+      // Drop from the front when over MAX_CONSOLE_LINES so memory
+      // and DOM stay bounded over long-running sessions.
+      return next.length > MAX_CONSOLE_LINES
+        ? next.slice(next.length - MAX_CONSOLE_LINES)
+        : next;
+    });
+  };
   // Rolling window of the last 30 /compute wall-clock measurements. Used
   // only for the once-per-second perf log; doesn't drive UI state.
   const computeTimingsRef = useRef<number[]>([]);
@@ -115,6 +147,7 @@ export function Simulator() {
         setSessionId(res.sessionId);
         setSimState(res.state);
         setCanvasDims({ width: res.config.width, height: res.config.height });
+        appendStdout(res.stdout);
         console.log("moda sessionId:", res.sessionId, "particles:", res.state.particles.length);
       } catch (e) {
         console.error("moda init failed:", e);
@@ -145,6 +178,7 @@ export function Simulator() {
 
           setSimState(res.state);
           setTicks(res.state.tick);
+          appendStdout(res.stdout);
 
           const now = performance.now();
           if (window.length >= 30 && now - lastPerfLogRef.current >= 1000) {
@@ -189,6 +223,15 @@ export function Simulator() {
     }
   }, [simState, canvasDims]);
 
+  // Auto-scroll the console to the bottom whenever a new line lands.
+  // Keyed on consoleLines.length so we don't re-scroll on unrelated
+  // re-renders (e.g. when only simState changes).
+  useEffect(() => {
+    const el = consoleRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [consoleLines.length]);
+
   const speedPct = `${speed}%`;
   const tempPct = `${temp}%`;
 
@@ -212,6 +255,7 @@ export function Simulator() {
       if (window.length > 30) window.shift();
       setSimState(res.state);
       setTicks(res.state.tick);
+      appendStdout(res.stdout);
     } catch (e) {
       console.error("moda step failed:", e);
     }
@@ -247,6 +291,7 @@ export function Simulator() {
     const y = ((e.clientY - rect.top) * canvas.height) / rect.height;
     try {
       const res = await adapter.click(sessionId, x, y);
+      appendStdout(res.stdout);
       console.log("moda click:", { x, y, res });
     } catch (err) {
       console.error("moda click failed:", err);
@@ -386,6 +431,19 @@ export function Simulator() {
               <IconCheck size={12} />
             </span>
           </label>
+        </div>
+
+        <div className={styles.console}>
+          <div className={styles.consoleHeader}>
+            console (last {MAX_CONSOLE_LINES} lines)
+          </div>
+          <pre
+            ref={consoleRef}
+            className={styles.consoleBody}
+            aria-label="MoDa snippet console output"
+          >
+            {consoleLines.join("\n")}
+          </pre>
         </div>
 
         <div className={styles.actionbar}>

@@ -30,6 +30,11 @@ export interface InitResponse {
     height: number;
     temperatureLevels: ["zero", "low", "medium", "high"];
   };
+  // Captured stdout from the snippet(s) executed for this call (e.g.
+  // `print()` output inside setup). Optional for back-compat with
+  // older servers that don't include the field — the consumer treats
+  // undefined as empty.
+  stdout?: string;
 }
 
 export interface ComputeRequest {
@@ -40,6 +45,7 @@ export interface ComputeRequest {
 
 export interface ComputeResponse {
   state: SimState;
+  stdout?: string;
 }
 
 export interface ClickRequest {
@@ -50,4 +56,5 @@ export interface ClickRequest {
 
 export interface ClickResponse {
   ack: true;
+  stdout?: string;
 }
