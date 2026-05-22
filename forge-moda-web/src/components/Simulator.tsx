@@ -9,7 +9,12 @@ import {
 } from "react";
 import styles from "./Simulator.module.css";
 import { LocalHttpAdapter } from "../adapters/LocalHttpAdapter";
-import type { SimState, Temperature } from "../types/wire";
+import type {
+  FeaturedSnippetMessage,
+  ModaSimStateResult,
+  SimState,
+  Temperature,
+} from "../types/wire";
 
 // Cap on the rolling console buffer. Bounds memory + DOM and matches
 // the per-line context the simulator's stdout-surfacing affordance is
@@ -110,6 +115,17 @@ export function Simulator() {
   // updates don't redraw particles.
   const [consoleLines, setConsoleLines] = useState<string[]>([]);
   const consoleRef = useRef<HTMLPreElement | null>(null);
+
+  // Featured-snippet discovery (Phase 2). Stays null until the
+  // plugin postMessages the {snippet_id, label, vault_path} on
+  // session-open — at that point the "Run simulation" button
+  // (labeled per the snippet's forge_action_label) renders in the
+  // simulator header. Generic /compute needs the explicit vault
+  // path: it doesn't infer FORGE_MODA_VAULT_PATH the way /moda/*
+  // does, so the plugin (which knows the path) feeds it through.
+  const [featured, setFeatured] =
+    useState<FeaturedSnippetMessage | null>(null);
+  const [featuredRunning, setFeaturedRunning] = useState(false);
 
   const adapter = useMemo(() => new LocalHttpAdapter(), []);
 
@@ -272,13 +288,77 @@ export function Simulator() {
   handleStepRef.current = handleStep;
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === "step") {
+      const data = event.data;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "step") {
         void handleStepRef.current();
+        return;
+      }
+      // Featured-snippet discovery (Phase 2). The plugin scans the
+      // active vault's frontmatter for `featured: true` and posts
+      // the result here on iframe-ready (handshake below). Single
+      // setFeatured call; the button renders conditionally on its
+      // non-null state.
+      if (data.type === "featured-snippet"
+          && typeof data.snippet_id === "string"
+          && typeof data.vault_path === "string") {
+        setFeatured({
+          type: "featured-snippet",
+          snippet_id: data.snippet_id,
+          label: data.label || "Run",
+          vault_path: data.vault_path,
+        });
       }
     };
     window.addEventListener("message", onMessage);
+    // Handshake: announce "ready" so the plugin (which holds the
+    // featured-snippet discovery + the vault path) knows it's safe
+    // to post the discovery message. window.parent in the iframe
+    // context; * targetOrigin because the iframe is loaded from
+    // localhost:5173 while the plugin posts from Obsidian's host
+    // origin — both ends control the conversation, no third-party
+    // origin risk.
+    window.parent?.postMessage({ type: "iframe-ready" }, "*");
     return () => window.removeEventListener("message", onMessage);
   }, []);
+
+  // "Run simulation" handler. POSTs the featured snippet via generic
+  // /compute, expects a moda_sim_state result, and renders the
+  // returned final-tick particles into the canvas as a static frame.
+  // Pauses the live loop so the auto-tick doesn't race past the
+  // rendered frame on the next interval. Matches handleStep's
+  // pause-then-render shape; the difference is the source of the
+  // state (generic /compute on a featured snippet vs /moda/compute
+  // on the current session).
+  const handleRunFeatured = async () => {
+    if (featured === null || featuredRunning) return;
+    setMode("paused");
+    setFeaturedRunning(true);
+    try {
+      const res = await adapter.computeSnippet(
+        featured.snippet_id, featured.vault_path);
+      appendStdout(res.stdout);
+      // moda_sim_state is the only result.type the canvas knows how
+      // to render. Anything else (raw json fallthrough, unknown
+      // future shape) we ignore on the canvas and only surface via
+      // the console panel.
+      const result = res.result as ModaSimStateResult | undefined;
+      if (result && result.type === "moda_sim_state") {
+        setSimState({
+          tick: result.content.tick,
+          particles: result.content.particles,
+        });
+        setTicks(result.content.tick);
+      } else {
+        console.warn("moda featured-run: unexpected result.type:",
+          (res.result as { type?: unknown })?.type);
+      }
+    } catch (e) {
+      console.error("moda featured-run failed:", e);
+    } finally {
+      setFeaturedRunning(false);
+    }
+  };
 
   const handleCanvasClick = async (e: ReactMouseEvent<HTMLCanvasElement>) => {
     if (sessionId === null) return;
@@ -307,6 +387,17 @@ export function Simulator() {
       <div className={styles.frame}>
         <header className={styles.header}>
           <h1 className={styles.title}>Model</h1>
+          {featured && (
+            <button
+              className={styles.featuredBtn}
+              onClick={() => void handleRunFeatured()}
+              disabled={featuredRunning}
+              aria-label={featured.label}
+              title={featured.label}
+            >
+              {featuredRunning ? "Running…" : featured.label}
+            </button>
+          )}
           <div className={styles.zoomGroup} role="group" aria-label="Zoom">
             <button
               className={styles.iconBtn}

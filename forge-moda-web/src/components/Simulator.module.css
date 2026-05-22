@@ -456,3 +456,28 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* "Run simulation" button in the simulator header. Visible only
+   when the plugin postMessages a featured-snippet discovery.
+   Sits between the title and the zoom group. Matches the existing
+   light-theme palette (the console rules established it). */
+.featuredBtn {
+  margin-left: auto;
+  margin-right: 12px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  background: var(--interactive-accent, oklch(0.55 0.15 250));
+  color: var(--text-on-accent, white);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.featuredBtn:hover {
+  opacity: 0.88;
+}
+.featuredBtn:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}

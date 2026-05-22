@@ -58,3 +58,35 @@ export interface ClickResponse {
   ack: true;
   stdout?: string;
 }
+
+// Generic /compute (NOT /moda/compute) response envelope. The
+// featured-button fires this when the user wants a one-shot
+// bounded run of a snippet (e.g. simulation). The `result.type`
+// dispatches to a renderer — moda_sim_state is the row-oriented
+// ParticleState shape the canvas already knows how to draw.
+export interface ModaSimStateResult {
+  type: "moda_sim_state";
+  content: {
+    tick: number;
+    particles: Particle[];
+  };
+}
+
+export interface GenericComputeResponse {
+  type: "action" | "data" | "snapshot";
+  result: ModaSimStateResult | unknown;  // narrows by result.type
+  stdout?: string;
+}
+
+// Discovery message the plugin postMessages into the iframe at
+// session-open. Identifies which snippet the featured button
+// should fire, what label to use, and the vault_path /compute
+// needs (generic /compute can't infer FORGE_MODA_VAULT_PATH like
+// /moda/* does). The iframe doesn't render the button until it
+// receives this message.
+export interface FeaturedSnippetMessage {
+  type: "featured-snippet";
+  snippet_id: string;
+  label: string;
+  vault_path: string;
+}
