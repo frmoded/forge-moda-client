@@ -420,47 +420,9 @@
   }
 }
 
-/* Console panel — surfaces stdout from /moda/* responses. Plain
-   monospace text block, fixed height with overflow scroll. Light
-   surface that adopts Obsidian theme variables when the iframe
-   inherits them; light-biased oklch fallbacks otherwise so the
-   panel reads as a light surface in both light and dark themes. */
-.console {
-  margin-top: 12px;
-  border-radius: 6px;
-  background: var(--background-secondary, oklch(0.96 0.005 240));
-  border: 1px solid var(--background-modifier-border, oklch(0.85 0.01 240));
-  overflow: hidden;
-}
-
-.consoleHeader {
-  padding: 4px 10px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted, oklch(0.45 0.02 240));
-  background: var(--background-primary-alt, oklch(0.93 0.005 240));
-  border-bottom: 1px solid var(--background-modifier-border, oklch(0.85 0.01 240));
-}
-
-.consoleBody {
-  margin: 0;
-  padding: 6px 10px;
-  height: 80px;
-  overflow-y: auto;
-  font-family: var(--font-monospace, ui-monospace, SFMono-Regular, monospace);
-  font-size: 11.5px;
-  line-height: 1.4;
-  color: var(--text-normal, oklch(0.2 0.02 240));
-  background: transparent;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
 /* "Run simulation" button in the simulator header. Visible only
    when the plugin postMessages a featured-snippet discovery.
-   Sits between the title and the zoom group. Matches the existing
-   light-theme palette (the console rules established it). */
+   Sits between the title and the zoom group. */
 .featuredBtn {
   margin-left: auto;
   margin-right: 12px;
