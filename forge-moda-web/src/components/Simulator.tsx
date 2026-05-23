@@ -180,11 +180,18 @@ export function Simulator() {
     return () => clearInterval(id);
   }, [mode, speed, sessionId, adapter, temp]);
 
-  // Redraw on every simState update. Water is rendered pale blue and
-  // ink is rendered larger and near-black so the three clicks visibly
-  // pop as distinct drops against the water population on the cream
-  // canvas background. Two passes (one fillStyle per pass) are
-  // slightly cheaper than setting fillStyle per particle.
+  // Redraw on every simState update. Palette is theme-aware: on light
+  // theme water is pale blue + ink is near-black; on dark theme water
+  // is a deeper desaturated blue + ink shifts to a warm light tone so
+  // both populations still read as distinct against the inverted
+  // canvas surface. Detection is the simple class-check on the
+  // iframe's documentElement — if Obsidian propagates its `theme-dark`
+  // class into the embedded iframe document, dark palette kicks in;
+  // otherwise the light defaults stay (no regression). Mid-session
+  // theme toggles take effect on the next redraw (no themechange
+  // listener — keyed on simState updates only).
+  // Two passes (one fillStyle per pass) stays for the same per-particle
+  // setStyle cost reason.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !simState || !canvasDims) return;
@@ -193,13 +200,19 @@ export function Simulator() {
     ctx.clearRect(0, 0, canvasDims.width, canvasDims.height);
     const water = simState.particles.filter((p) => p.type === "water");
     const ink = simState.particles.filter((p) => p.type === "ink");
-    ctx.fillStyle = "#9cc3e5";
+    const isDark =
+      typeof document !== "undefined" &&
+      document.documentElement.classList.contains("theme-dark");
+    const palette = isDark
+      ? { water: "#4a6280", ink: "#e8e6df" }
+      : { water: "#9cc3e5", ink: "#15171a" };
+    ctx.fillStyle = palette.water;
     for (const p of water) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.fillStyle = "#15171a";
+    ctx.fillStyle = palette.ink;
     for (const p of ink) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 4.0, 0, Math.PI * 2);
@@ -297,11 +310,9 @@ export function Simulator() {
         featured.snippet_id, featured.vault_path);
       // moda_sim_state is the only result.type the canvas knows how
       // to render. Anything else (raw json fallthrough, unknown
-      // future shape) is dropped here — featured-run stdout/results
-      // don't currently flow back to Forge Output (would need
-      // postMessage forwarding; out of scope for the unify-stdout
-      // prompt). Forge-clicking the snippet directly is the path
-      // that surfaces stdout today.
+      // future shape) gets rendered only via Forge Output through
+      // the postMessage relay below — the iframe canvas just paints
+      // the moda_sim_state case.
       const result = res.result as ModaSimStateResult | undefined;
       if (result && result.type === "moda_sim_state") {
         setSimState({
@@ -313,8 +324,30 @@ export function Simulator() {
         console.warn("moda featured-run: unexpected result.type:",
           (res.result as { type?: unknown })?.type);
       }
+      // Relay stdout + result to the plugin so Forge Output gets the
+      // print() output and the structured value. The plugin's
+      // moda-view.ts listens on the same channel as the
+      // iframe-ready / step / featured-snippet handshakes and
+      // dispatches `compute-result` to OutputView.append().
+      window.parent?.postMessage({
+        type: "compute-result",
+        snippet_id: featured.snippet_id,
+        stdout: res.stdout ?? "",
+        result: res.result,
+      }, "*");
     } catch (e) {
       console.error("moda featured-run failed:", e);
+      // Forward the failure too so Forge Output can render an error
+      // entry. The plugin's appendError surface handles {snippet_id,
+      // error, stdout} just like the success path does {snippet_id,
+      // stdout, result} — symmetric.
+      window.parent?.postMessage({
+        type: "compute-result",
+        snippet_id: featured.snippet_id,
+        stdout: "",
+        result: null,
+        error: e instanceof Error ? e.message : String(e),
+      }, "*");
     } finally {
       setFeaturedRunning(false);
     }
