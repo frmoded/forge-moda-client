@@ -213,10 +213,11 @@ export function Simulator() {
     return () => clearInterval(id);
   }, [mode, speed, sessionId, adapter, temp]);
 
-  // Redraw on every simState update. Water is rendered blue, ink is
-  // rendered near-black so the two types are immediately distinguishable
-  // on the cream canvas background. Two passes (one fillStyle per pass)
-  // are slightly cheaper than setting fillStyle per particle.
+  // Redraw on every simState update. Water is rendered pale blue and
+  // ink is rendered larger and near-black so the three clicks visibly
+  // pop as distinct drops against the water population on the cream
+  // canvas background. Two passes (one fillStyle per pass) are
+  // slightly cheaper than setting fillStyle per particle.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !simState || !canvasDims) return;
@@ -225,7 +226,7 @@ export function Simulator() {
     ctx.clearRect(0, 0, canvasDims.width, canvasDims.height);
     const water = simState.particles.filter((p) => p.type === "water");
     const ink = simState.particles.filter((p) => p.type === "ink");
-    ctx.fillStyle = "#3a6fb3";
+    ctx.fillStyle = "#9cc3e5";
     for (const p of water) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
@@ -234,7 +235,7 @@ export function Simulator() {
     ctx.fillStyle = "#15171a";
     for (const p of ink) {
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, 4.0, 0, Math.PI * 2);
       ctx.fill();
     }
   }, [simState, canvasDims]);
