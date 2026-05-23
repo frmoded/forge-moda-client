@@ -7,85 +7,131 @@ import type {
   GenericComputeResponse,
 } from "../types/wire";
 
+// V1 Phase 2: this adapter no longer makes HTTP calls. It posts
+// `engine-request` messages to `window.parent` (the Obsidian plugin's
+// renderer) and awaits matching `engine-response` messages. The
+// plugin dispatches via its Pyodide host — no uvicorn round-trip,
+// no Vite dev server.
+//
+// The class name kept its `LocalHttpAdapter` label so existing
+// Simulator.tsx imports don't have to change. A future cleanup
+// could rename to `LocalEngineAdapter` to drop the now-misleading
+// "Http" reference; the prompt suggests it as an optional polish.
+//
+// Concurrency model: each call generates a `request_id` (UUID),
+// posts the engine-request, and stashes resolve/reject handlers in
+// a per-instance `pendingRequests` map. The message listener picks
+// up engine-response messages, looks up the right handler, and
+// resolves/rejects. Out-of-order responses correlate correctly via
+// request_id — important for the live 30Hz compute loop racing
+// against canvas clicks.
 export class LocalHttpAdapter implements ForgeAdapter {
-  readonly baseUrl: string;
-  // Root of the forge server (one level above /moda). Used by
-  // computeSnippet for the generic /compute endpoint that the
-  // featured-button fires; /moda/* keeps using `baseUrl`.
-  readonly rootUrl: string;
+  private pendingRequests = new Map<string, {
+    resolve: (v: unknown) => void;
+    reject: (e: Error) => void;
+  }>();
+  private listener: ((e: MessageEvent) => void) | null = null;
 
-  constructor(baseUrl: string = "http://localhost:8000/moda") {
-    this.baseUrl = baseUrl;
-    // Strip the /moda suffix to get the server root. baseUrl might
-    // not end in /moda (custom env), in which case fall back to
-    // treating baseUrl itself as the root.
-    this.rootUrl = baseUrl.endsWith("/moda")
-      ? baseUrl.slice(0, -"/moda".length)
-      : baseUrl;
+  constructor() {
+    this.listener = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.type !== "engine-response") return;
+      const handler = this.pendingRequests.get(data.request_id);
+      if (!handler) return;
+      this.pendingRequests.delete(data.request_id);
+      if (data.ok) {
+        handler.resolve(data.result);
+      } else {
+        handler.reject(new Error(data.error ?? "engine-response: unknown error"));
+      }
+    };
+    // Iframes can use addEventListener("message"); in jsdom tests
+    // this is the same global window.
+    window.addEventListener("message", this.listener);
   }
 
-  init(): Promise<InitResponse> {
-    return this.post<InitResponse>("/init", {});
+  /** Tear-down for tests / hot-reload. Production iframes keep this
+   *  adapter for the lifetime of the React tree; the listener leak
+   *  is bounded by page lifetime. */
+  dispose(): void {
+    if (this.listener) {
+      window.removeEventListener("message", this.listener);
+      this.listener = null;
+    }
+    // Reject any in-flight requests so callers don't hang.
+    for (const { reject } of this.pendingRequests.values()) {
+      reject(new Error("adapter disposed"));
+    }
+    this.pendingRequests.clear();
   }
 
-  compute(
+  /** Post an engine-request and return a promise that resolves on the
+   *  matching engine-response. UUID via crypto.randomUUID() — modern
+   *  browsers + Obsidian's Electron renderer support it. */
+  private postEngineRequest(
+    op: string,
+    args: unknown[],
+    vault_name?: string,
+  ): Promise<unknown> {
+    const request_id = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(request_id, { resolve, reject });
+      window.parent?.postMessage(
+        {
+          type: "engine-request",
+          request_id,
+          op,
+          args,
+          ...(vault_name !== undefined ? { vault_name } : {}),
+        },
+        "*",
+      );
+    });
+  }
+
+  async init(): Promise<InitResponse> {
+    return (await this.postEngineRequest("moda-init", [])) as InitResponse;
+  }
+
+  async compute(
     sessionId: string,
     dt: number,
     temperature: Temperature,
   ): Promise<ComputeResponse> {
-    return this.post<ComputeResponse>("/compute", {
-      sessionId,
-      dt,
-      temperature,
-    });
+    // sessionId is part of the wire shape but the plugin holds state
+    // in-process (one iframe per plugin session), so the plugin
+    // ignores it and we just pass dt + temperature.
+    void sessionId;
+    return (await this.postEngineRequest("moda-compute", [dt, temperature])) as ComputeResponse;
   }
 
-  click(sessionId: string, x: number, y: number): Promise<ClickResponse> {
-    return this.post<ClickResponse>("/click", { sessionId, x, y });
+  async click(
+    sessionId: string,
+    x: number,
+    y: number,
+  ): Promise<ClickResponse> {
+    void sessionId;
+    return (await this.postEngineRequest("moda-click", [x, y])) as ClickResponse;
   }
 
-  /** Invoke a snippet via the generic /compute endpoint (NOT the
-   *  /moda/* fast-path). Used by the featured-button "Run simulation"
-   *  affordance: the server runs the snippet end-to-end and returns a
-   *  {type: "action", result, stdout} envelope where `result` is
-   *  whatever the snippet's serializer emitted. For moda snippets
-   *  returning ParticleState, that's `{type: "moda_sim_state",
-   *  content: {tick, particles: [...]}}` — see forge engine commit
-   *  a739390 for the serialization unification.
-   *
-   *  vaultPath is required (generic /compute doesn't infer it from
-   *  env like /moda/* does); the plugin postMessages it to the
-   *  iframe on session start. */
+  /** Generic /compute path for the featured-button (Phase 2 routes
+   *  it through the plugin's pyodide-host alongside the moda-fast-path
+   *  operations). vault_name selects which bundled library the plugin
+   *  resolves against. */
   async computeSnippet(
     snippetId: string,
     vaultPath: string,
   ): Promise<GenericComputeResponse> {
-    // /connect is idempotent and cheap; ensure the server's session
-    // manager has loaded this vault before /compute lookups by id.
-    await this.postTo<unknown>(`${this.rootUrl}/connect`, {
-      vault_path: vaultPath,
-    });
-    return this.postTo<GenericComputeResponse>(`${this.rootUrl}/compute`, {
-      vault_path: vaultPath,
-      snippet_id: snippetId,
-      inputs: {},
-    });
-  }
-
-  private async post<T>(path: string, body: unknown): Promise<T> {
-    return this.postTo<T>(`${this.baseUrl}${path}`, body);
-  }
-
-  private async postTo<T>(url: string, body: unknown): Promise<T> {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`POST ${url} → ${res.status}: ${text}`);
-    }
-    return (await res.json()) as T;
+    // vault_path was used by the old HTTP path to call /connect first;
+    // V1 Phase 2 reduces this to a single engine-request with the
+    // vault_name field. The legacy vaultPath argument is still
+    // accepted for API stability but ignored — the plugin's bundled
+    // library is the source of truth.
+    void vaultPath;
+    return (await this.postEngineRequest(
+      "compute",
+      [snippetId],
+      "forge-moda",
+    )) as GenericComputeResponse;
   }
 }

@@ -90,3 +90,34 @@ export interface FeaturedSnippetMessage {
   label: string;
   vault_path: string;
 }
+
+// V1 Phase 2: postMessage engine protocol. Replaces the iframe's
+// previous HTTP calls to localhost:8000 with postMessage round-trips
+// to the plugin (which hosts Pyodide per V1 Phase 1).
+//
+// Per-op args shape:
+//   moda-init:    []                       (no positional args)
+//   moda-compute: [dt: number, temperature: Temperature]
+//   moda-click:   [x: number, y: number]
+//   compute:      [snippet_id: string]     (uses vault_name field too)
+//
+// Each engine-request carries a UUID `request_id` so the iframe can
+// correlate responses when multiple calls are in flight (e.g., the
+// live compute loop's 30Hz pace overlapping a click). The plugin
+// replies with engine-response carrying the matching request_id;
+// the iframe's adapter looks up the pending promise and resolves it.
+export interface EngineRequest {
+  type: "engine-request";
+  request_id: string;
+  op: "moda-init" | "moda-compute" | "moda-click" | "compute";
+  args: unknown[];
+  vault_name?: string;  // only used when op === "compute"
+}
+
+export interface EngineResponse {
+  type: "engine-response";
+  request_id: string;
+  ok: boolean;
+  result?: unknown;     // shape matches the existing /moda/* HTTP responses or GenericComputeResponse
+  error?: string;
+}
