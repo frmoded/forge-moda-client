@@ -1,5 +1,6 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite'
+import { viteSingleFile } from 'vite-plugin-singlefile';
 import react from '@vitejs/plugin-react'
 
 // V1 Phase 2: production build output goes into the plugin's
@@ -11,7 +12,7 @@ import react from '@vitejs/plugin-react'
 // moda-view loads from there when the `useDevIframe` setting is true.
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), viteSingleFile()],
   base: './',
   build: {
     outDir: '../../forge-client-obsidian/assets/iframe',
