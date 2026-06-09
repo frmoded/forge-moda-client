@@ -84,7 +84,7 @@ describe("Simulator", () => {
     }
   });
 
-  it("renders the featured button after a featured-snippet postMessage", async () => {
+  it("does NOT render a featured button after a featured-snippet postMessage (v0.2.97 — button removed; auto-trigger via featured-run)", async () => {
     const unregister = withFakeEnginePlugin((op) => {
       if (op === "moda-init") return benignInitResponse;
       return null;
@@ -102,17 +102,23 @@ describe("Simulator", () => {
           "*",
         );
       });
-      await waitFor(() =>
+      // Wait for the message dispatch + any re-render to flush. The
+      // model title (h1) is a stable post-mount sentinel.
+      await waitFor(() => {
         expect(
-          screen.getByRole("button", { name: /run simulation/i }),
-        ).toBeInTheDocument(),
-      );
+          screen.getByRole("heading", { level: 1, name: /model/i }),
+        ).toBeInTheDocument();
+      });
+      // The featured-snippet button must NOT appear.
+      expect(
+        screen.queryByRole("button", { name: /run simulation/i }),
+      ).not.toBeInTheDocument();
     } finally {
       unregister();
     }
   });
 
-  it("forwards compute-result to window.parent after a featured-button click", async () => {
+  it("forwards compute-result to window.parent after a featured-run postMessage (v0.2.97 — replaces button-click trigger)", async () => {
     // The fake plugin services both moda-init (so Simulator boots
     // happily) and compute (so the featured-button gets a result).
     const unregister = withFakeEnginePlugin((op, args) => {
@@ -148,9 +154,10 @@ describe("Simulator", () => {
           "*",
         );
       });
-      const btn = await screen.findByRole("button", { name: /run simulation/i });
+      // v0.2.97 — trigger via featured-run postMessage instead of
+      // clicking the (now-removed) header button.
       act(() => {
-        btn.click();
+        window.postMessage({ type: "featured-run" }, "*");
       });
       await waitFor(() => {
         expect(received.length).toBeGreaterThan(0);

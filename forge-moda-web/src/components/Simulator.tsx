@@ -112,6 +112,12 @@ export function Simulator() {
   const [featured, setFeatured] =
     useState<FeaturedSnippetMessage | null>(null);
   const [featuredRunning, setFeaturedRunning] = useState(false);
+  // v0.2.97 — `featured-run` arrives via postMessage from the plugin
+  // on Forge-click. We can't run immediately if `featured` hasn't been
+  // hydrated yet (featured-snippet may arrive in the same tick, but
+  // setFeatured's state update hasn't flushed). Stash the intent here;
+  // the effect below picks it up once `featured` is ready.
+  const [autoRunRequested, setAutoRunRequested] = useState(false);
 
   const adapter = useMemo(() => new LocalHttpAdapter(), []);
 
@@ -268,8 +274,8 @@ export function Simulator() {
       // Featured-snippet discovery (Phase 2). The plugin scans the
       // active vault's frontmatter for `featured: true` and posts
       // the result here on iframe-ready (handshake below). Single
-      // setFeatured call; the button renders conditionally on its
-      // non-null state.
+      // setFeatured call; featured state is consumed by
+      // handleRunFeatured when the plugin posts featured-run.
       if (data.type === "featured-snippet"
           && typeof data.snippet_id === "string"
           && typeof data.vault_path === "string") {
@@ -279,6 +285,19 @@ export function Simulator() {
           label: data.label || "Run",
           vault_path: data.vault_path,
         });
+        return;
+      }
+      // forge-client-obsidian v0.2.97 — auto-trigger the featured
+      // snippet when the plugin posts `featured-run` (sent on
+      // Forge-click of the moda snippet). Replaces the explicit
+      // header button. We can't fire handleRunFeatured directly here
+      // because `featured` state may not be set yet (featured-snippet
+      // and featured-run can arrive in the same tick). Flag the
+      // intent; the watcher effect below runs once `featured` is
+      // hydrated.
+      if (data.type === "featured-run") {
+        setAutoRunRequested(true);
+        return;
       }
     };
     window.addEventListener("message", onMessage);
@@ -353,6 +372,22 @@ export function Simulator() {
     }
   };
 
+  // v0.2.97 — fire the auto-run once `featured` is hydrated. Handles
+  // the postMessage race: featured-snippet and featured-run can land
+  // in the same tick, but featured-run's setAutoRunRequested can't
+  // see the freshly-set featured value until the next render. Effect
+  // re-runs on featured / autoRunRequested / featuredRunning changes
+  // — when all three align, fire once and clear the flag.
+  useEffect(() => {
+    if (autoRunRequested && featured !== null && !featuredRunning) {
+      setAutoRunRequested(false);
+      void handleRunFeatured();
+    }
+    // handleRunFeatured intentionally omitted: it closes over the
+    // same state variables this effect already depends on.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRunRequested, featured, featuredRunning]);
+
   const handleCanvasClick = async (e: ReactMouseEvent<HTMLCanvasElement>) => {
     if (sessionId === null) return;
     const canvas = e.currentTarget;
@@ -379,17 +414,13 @@ export function Simulator() {
       <div className={styles.frame}>
         <header className={styles.header}>
           <h1 className={styles.title}>Model</h1>
-          {featured && (
-            <button
-              className={styles.featuredBtn}
-              onClick={() => void handleRunFeatured()}
-              disabled={featuredRunning}
-              aria-label={featured.label}
-              title={featured.label}
-            >
-              {featuredRunning ? "Running…" : featured.label}
-            </button>
-          )}
+          {/* Featured-snippet button removed (forge-client-obsidian
+              v0.2.97) — the plugin now auto-triggers `featured-run`
+              via postMessage on Forge-click of the moda snippet, so
+              the in-iframe button is redundant. The `featured` state
+              is still kept (set by the featured-snippet handshake)
+              because handleRunFeatured() consumes it when the plugin
+              posts featured-run. */}
           <div className={styles.zoomGroup} role="group" aria-label="Zoom">
             <button
               className={styles.iconBtn}
