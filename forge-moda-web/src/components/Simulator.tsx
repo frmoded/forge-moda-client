@@ -149,21 +149,13 @@ export function Simulator() {
   }, [adapter]);
 
   useEffect(() => {
-    console.log(`[moda v0.2.103] tick-loop effect ran; mode=${mode}, sessionId=${sessionId}, speed=${speed}, temp=${temp}`);
-    if (mode !== "running") {
-      console.log(`[moda v0.2.103] tick loop NOT starting (mode=${mode})`);
-      return;
-    }
-    if (sessionId === null) {
-      console.log("[moda v0.2.103] tick loop NOT starting (sessionId null)");
-      return;
-    }
+    if (mode !== "running") return;
+    if (sessionId === null) return;
     // Floor at 33 ms (≈30 Hz) so the speed slider's top end matches the
     // spec target. Slope 6 makes the floor bind around speed=95 and
     // tightens up the high-end response; below that the slider continues
     // to dilate the tick (speed=0 → 600 ms, speed=50 → 300 ms).
     const ms = Math.max(33, 600 - speed * 6);
-    console.log(`[moda v0.2.103] tick loop STARTING with ms=${ms}`);
     const id = setInterval(() => {
       const t0 = performance.now();
       adapter
@@ -191,10 +183,7 @@ export function Simulator() {
           console.error("moda compute failed:", e);
         });
     }, ms);
-    return () => {
-      console.log("[moda v0.2.103] tick loop CLEARING interval (cleanup fired)");
-      clearInterval(id);
-    };
+    return () => clearInterval(id);
   }, [mode, speed, sessionId, adapter, temp]);
 
   // Redraw on every simState update. Palette is theme-aware: on light
@@ -240,15 +229,9 @@ export function Simulator() {
   const speedPct = `${speed}%`;
   const tempPct = `${temp}%`;
 
-  const handleRun = () => {
-    console.log("[moda v0.2.103] handleRun clicked; current mode:", mode);
-    setMode("running");
-  };
-  const handlePause = () => {
-    const next = mode === "paused" ? "running" : "paused";
-    console.log(`[moda v0.2.103] handlePause clicked; ${mode} → ${next}`);
-    setMode(next);
-  };
+  const handleRun = () => setMode("running");
+  const handlePause = () =>
+    setMode(mode === "paused" ? "running" : "paused");
 
   // Step advances the simulation exactly one /compute tick and parks the
   // mode at "paused" so the auto-loop doesn't immediately race past the
@@ -415,17 +398,8 @@ export function Simulator() {
     const x = ((e.clientX - rect.left) * canvas.width) / rect.width;
     const y = ((e.clientY - rect.top) * canvas.height) / rect.height;
     try {
-      const t0 = performance.now();
       const res = await adapter.click(sessionId, x, y);
-      // v0.2.103 — log first 5 ink particle positions so we can see
-      // whether they're tightly clustered (radius ~5 around the click)
-      // or radially scattered (the pre-v0.2.102 behavior).
-      const inkSample = res?.state?.particles
-        ?.filter((p: { type: string }) => p.type === "ink")
-        ?.slice(-5)
-        ?.map((p: { x: number; y: number }) =>
-          ({ dx: (p.x - x).toFixed(2), dy: (p.y - y).toFixed(2) }));
-      console.log(`[moda v0.2.103] click at (${x.toFixed(1)}, ${y.toFixed(1)}); ${(performance.now() - t0).toFixed(0)}ms; last 5 ink offsets:`, inkSample);
+      console.log("moda click:", { x, y, res });
     } catch (err) {
       console.error("moda click failed:", err);
     }
